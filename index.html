@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI GPA Helper</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #111827;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --accent: #38bdf8;
+      --danger: #fb7185;
+      --ok: #34d399;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: linear-gradient(135deg, #0b1022, var(--bg));
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 920px;
+      background: rgba(17, 24, 39, 0.9);
+      border: 1px solid #1f2937;
+      border-radius: 16px;
+      padding: 22px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+    }
+
+    h1 { margin: 0 0 6px; }
+
+    .subtitle {
+      margin: 0 0 18px;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr auto;
+      gap: 10px;
+    }
+
+    input, select, button {
+      border: 1px solid #263244;
+      background: #0b1324;
+      color: var(--text);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 0.95rem;
+    }
+
+    input::placeholder { color: #728197; }
+
+    button {
+      cursor: pointer;
+      border-color: #1f2937;
+      background: linear-gradient(180deg, #0ea5e9, #0284c7);
+      color: white;
+      font-weight: 600;
+      transition: transform 0.08s ease;
+    }
+
+    button:active { transform: translateY(1px); }
+
+    .section {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid #223049;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 10px;
+      border-bottom: 1px solid #1f2937;
+      font-size: 0.93rem;
+    }
+
+    th { color: var(--muted); font-weight: 600; }
+
+    .remove {
+      background: transparent;
+      border: 1px solid #374151;
+      color: var(--danger);
+      padding: 5px 8px;
+      border-radius: 8px;
+    }
+
+    .result-box {
+      margin-top: 14px;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+
+    .card {
+      background: #0b1324;
+      border: 1px solid #1f2937;
+      border-radius: 12px;
+      padding: 14px;
+    }
+
+    .gpa {
+      font-size: 1.9rem;
+      font-weight: 800;
+      color: var(--ok);
+      margin: 4px 0 0;
+    }
+
+    .ai-output {
+      line-height: 1.55;
+      color: #dbeafe;
+      margin: 8px 0 0;
+      white-space: pre-wrap;
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: 0.88rem;
+      margin-top: 8px;
+    }
+
+    @media (max-width: 700px) {
+      .grid { grid-template-columns: 1fr 1fr; }
+      .grid button { grid-column: span 2; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <h1>AI GPA Helper</h1>
+    <p class="subtitle">Enter your courses and get an instant GPA + AI-style study advice.</p>
+
+    <div class="grid">
+      <input id="course" type="text" placeholder="Course name (e.g., Math)" />
+      <input id="credits" type="number" min="1" max="6" placeholder="Credits" />
+      <select id="grade">
+        <option value="">Grade</option>
+        <option>A</option><option>A-</option><option>B+</option><option>B</option><option>B-</option>
+        <option>C+</option><option>C</option><option>C-</option><option>D</option><option>F</option>
+      </select>
+      <button id="addBtn">Add</button>
+    </div>
+
+    <section class="section">
+      <table>
+        <thead>
+          <tr>
+            <th>Course</th>
+            <th>Credits</th>
+            <th>Grade</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <p class="hint">Tip: add at least 2 courses for better recommendations.</p>
+    </section>
+
+    <section class="result-box">
+      <div class="card">
+        <div>Current GPA</div>
+        <div class="gpa" id="gpaValue">0.00</div>
+      </div>
+      <div class="card">
+        <div>AI Study Coach</div>
+        <p class="ai-output" id="aiAdvice">Add courses to get personalized advice.</p>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const pointsMap = {
+      "A": 4.0,
+      "A-": 3.7,
+      "B+": 3.3,
+      "B": 3.0,
+      "B-": 2.7,
+      "C+": 2.3,
+      "C": 2.0,
+      "C-": 1.7,
+      "D": 1.0,
+      "F": 0.0
+    };
+
+    const courses = [];
+
+    const courseEl = document.getElementById("course");
+    const creditsEl = document.getElementById("credits");
+    const gradeEl = document.getElementById("grade");
+    const addBtn = document.getElementById("addBtn");
+    const rowsEl = document.getElementById("rows");
+    const gpaValueEl = document.getElementById("gpaValue");
+    const aiAdviceEl = document.getElementById("aiAdvice");
+
+    function render() {
+      rowsEl.innerHTML = "";
+      courses.forEach((c, idx) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${c.name}</td>
+          <td>${c.credits}</td>
+          <td>${c.grade}</td>
+          <td><button class="remove" data-index="${idx}">Remove</button></td>
+        `;
+        rowsEl.appendChild(tr);
+      });
+
+      document.querySelectorAll(".remove").forEach(btn => {
+        btn.addEventListener("click", () => {
+          courses.splice(Number(btn.dataset.index), 1);
+          updateResults();
+          render();
+        });
+      });
+
+      updateResults();
+    }
+
+    function updateResults() {
+      if (!courses.length) {
+        gpaValueEl.textContent = "0.00";
+        aiAdviceEl.textContent = "Add courses to get personalized advice.";
+        return;
+      }
+
+      let quality = 0;
+      let credits = 0;
+      let lowCourses = [];
+
+      for (const c of courses) {
+        quality += pointsMap[c.grade] * c.credits;
+        credits += c.credits;
+        if (pointsMap[c.grade] < 2.7) lowCourses.push(c.name);
+      }
+
+      const gpa = quality / credits;
+      gpaValueEl.textContent = gpa.toFixed(2);
+      aiAdviceEl.textContent = generateAdvice(gpa, lowCourses);
+    }
+
+    function generateAdvice(gpa, lowCourses) {
+      const base = [];
+      if (gpa >= 3.7) {
+        base.push("Great work — your performance is excellent.");
+        base.push("Keep your momentum with weekly review sessions and practice tests.");
+      } else if (gpa >= 3.0) {
+        base.push("You are doing well, but there is room to improve.");
+        base.push("Spend 20-30 extra minutes after each class rewriting key concepts.");
+      } else if (gpa >= 2.0) {
+        base.push("You are passing, but your GPA needs attention.");
+        base.push("Use active recall and create a small study plan: 45 minutes/day for weaker subjects.");
+      } else {
+        base.push("Your current GPA is at risk.");
+        base.push("Focus on fundamentals, seek tutoring, and meet each instructor this week.");
+      }
+
+      if (lowCourses.length) {
+        base.push(`Priority courses: ${lowCourses.join(", ")}.`);
+      }
+
+      const target = gpa < 3.0
+        ? "If you raise one low grade by one letter, your GPA can improve noticeably this term."
+        : "To push toward the next GPA tier, aim for mostly A-/B+ or better going forward.";
+
+      base.push(target);
+      return base.join("\n");
+    }
+
+    addBtn.addEventListener("click", () => {
+      const name = courseEl.value.trim();
+      const credits = Number(creditsEl.value);
+      const grade = gradeEl.value;
+
+      if (!name || !credits || !grade) {
+        alert("Please enter course name, credits, and grade.");
+        return;
+      }
+
+      courses.push({ name, credits, grade });
+
+      courseEl.value = "";
+      creditsEl.value = "";
+      gradeEl.value = "";
+
+      render();
+    });
+
+    render();
+  </script>
+</body>
+</html>
